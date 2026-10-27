@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stickers</title>
+<style>
+  :root {
+    --bg: #242424;          /* soft charcoal background */
+    --fade: 600ms;          /* fade-out / fade-in duration */
+    --size: 78vmin;         /* max sticker size (relative to the smaller screen side) */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;        /* no scrolling */
+    background: var(--bg);
+  }
+
+  body {
+    display: grid;
+    place-items: center;     /* perfect centering, horizontal + vertical */
+  }
+
+  #sticker {
+    max-width: var(--size);
+    max-height: var(--size);
+    width: auto;
+    height: auto;
+    object-fit: contain;     /* never crop or distort */
+    opacity: 0;
+    transition: opacity var(--fade) ease;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
+  }
+
+  #sticker.visible { opacity: 1; }
+
+  /* Small screens: let the sticker use a bit more of the viewport */
+  @media (max-width: 600px) {
+    :root { --size: 86vmin; }
+  }
+
+  /* Respect reduced-motion: swap instantly, no fading */
+  @media (prefers-reduced-motion: reduce) {
+    :root { --fade: 0ms; }
+    #sticker { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<img id="sticker" alt="">
+
+<script>
+  /* ==========================================================
+     1) ADD YOUR STICKERS HERE
+     ----------------------------------------------------------
+     Put your images inside a "stickers/" folder next to this
+     file, then list them below (one per line, comma-separated).
+     Supports PNG, JPG, WebP, GIF, and transparent backgrounds.
+     Full URLs (https://...) work too.
+     To remove a sticker, delete its line.
+     ========================================================== */
+  const stickers = [
+    "./stickers/st1.webp",
+    "./stickers/st2.webp",
+    "./stickers/st3.webp",
+    "./stickers/st5.webp",
+    "./stickers/st6.webp"
+  ];
+
+  /* ==========================================================
+     2) CHANGE THE ROTATION SPEED HERE
+     ----------------------------------------------------------
+     Time each sticker stays on screen, in milliseconds.
+     10000 = 10 seconds, 5000 = 5 seconds, etc.
+     ========================================================== */
+  const STICKER_INTERVAL = 10000;
+
+  /* ==========================================================
+     Everything below is the display logic. No need to edit.
+     ========================================================== */
+  (function () {
+    const img = document.getElementById("sticker");
+    const list = Array.isArray(stickers)
+      ? stickers.filter(s => typeof s === "string" && s.trim() !== "")
+      : [];
+
+    // Nothing to show: stay on the empty charcoal background.
+    if (list.length === 0) return;
+
+    const FADE_MS = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 600;
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+
+    // Load an image fully (decoded) before it is shown. Resolves true/false.
+    function load(src) {
+      return new Promise(resolve => {
+        const i = new Image();
+        i.onload = () => resolve(true);
+        i.onerror = () => resolve(false);
+        i.src = src;
+      });
+    }
+
+    let index = 0;
+
+    // Show list[i]; skips files that fail to load.
+    async function show(i, attempts = 0) {
+      if (attempts >= list.length) return false;     // every file failed
+      const src = list[i];
+      const ok = await load(src);
+      if (!ok) return show((i + 1) % list.length, attempts + 1);
+
+      index = i;
+      if (img.classList.contains("visible") && FADE_MS > 0) {
+        img.classList.remove("visible");              // fade out
+        await wait(FADE_MS);
+      }
+      img.src = src;
+      try { await img.decode(); } catch (e) { /* ignore */ }
+      requestAnimationFrame(() => img.classList.add("visible")); // fade in
+      return true;
+    }
+
+    async function start() {
+      const shown = await show(0);
+      if (!shown || list.length < 2) return;          // single sticker: no rotation
+
+      setInterval(async () => {
+        const next = (index + 1) % list.length;
+        await show(next);
+        // Warm the cache for the one after this
+        load(list[(next + 1) % list.length]);
+      }, STICKER_INTERVAL);
+
+      load(list[1]);                                  // preload the upcoming sticker
+    }
+
+    start();
+  })();
+</script>
+</body>
+</html>
